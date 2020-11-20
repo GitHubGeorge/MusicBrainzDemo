@@ -1,0 +1,21 @@
+﻿
+<div class="jumbotron">
+    <h1>MusicBrainz Demo</h1>
+    @if (!MusicBrainzDemo.Helpers.LoginHelper.IsLoggedIn())
+    {
+        <p class="lead">You will need to <a href="/Login">login </a> to use this.</p>
+    }
+    else
+    {
+        <p class="lead">Welcome</p>
+    }
+    
+</div>
+
+<!-- Need to login to use search -->
+@if (MusicBrainzDemo.Helpers.LoginHelper.IsLoggedIn())
+{
+    @Html.Partial("_Main")
+}
+
+

@@ -1,0 +1,301 @@
+﻿@using MusicBrainzDemo.ViewModels.Search
+@model SearchViewModel
+
+<strong>Welcome to MusicBrainz Demo</strong>
+<br/>
+<br/>
+
+<script type='text/javascript'>
+        
+    var ctx = null; 
+    var color = Chart.helpers.color;
+
+    // These functions relate to the scatter plot
+    
+
+    // Generate scatter data
+    function generateData() {
+        var data = [];
+        for (var i = 0; i < 7; i++) {
+            data.push({
+                x: randomScalingFactor(),
+                y: randomScalingFactor()
+            });
+        }
+        return data;
+    }
+
+    // Find words in a string
+    function countWords(str) {
+        return str.trim().split(/\s+/).length;
+    }
+
+    // Get all song titles 
+    function getSongTitles() {
+        var titles = [];
+
+        // Get each title
+        $("div#divSongResultList ul li").each(function (i) {
+            titles.push($(this).find("a").text());
+        });
+
+        return titles;
+    }     
+
+    // Generate data with average length for each song title
+    function generateAverage() {
+        var data = [];
+        var titles = getSongTitles();        
+        var totalWordLength = 0;
+        var average = 1, min = 1, max = 1, titleLength = 0;
+
+        // Get some values from song titles
+        for (var i = 0; i < titles.length - 1; i++) {
+
+            // Get title length
+            titleLength = countWords(titles[i]);
+        
+            // Get min, max and total word length
+            (min = titleLength < min ? titleLength : min);
+            (max = titleLength > max ? titleLength : max);
+            totalWordLength += countWords(titles[i]);
+        }
+
+        // Get average word length
+        averageWordLength = totalWordLength / titles.length;
+
+        // Generate data from these values
+        data.push({
+            x: 0,
+            y: min
+        });
+
+        data.push({
+            x: 1,
+            y: averageWordLength
+        });
+
+        data.push({
+            x: 2,
+            y: max
+        });
+
+        return data;
+    }
+
+    // Generate data with word length for each song title
+    function generateWordLength() {
+        var data = [];
+        var titles = getSongTitles();
+        
+        // Generate data from word length for each title
+        for (var i = 0; i < titles.length - 1; i++) {
+            data.push({
+                x: i,
+                y: countWords(titles[i])
+            });
+        }
+
+        return data;
+    }
+
+    // Setup scatter data structure
+    var scatterChartData = {
+        datasets: [{
+            label: '',
+            borderColor: window.chartColors.red,
+            backgroundColor: color(window.chartColors.red).alpha(0.2).rgbString(),
+            data: []
+        }]
+    };
+
+    // Draw a scatter plot for average values
+    function DrawScatterPlot_Average() {
+
+        scatterChartData.datasets[0].label = 'Average title length';
+        scatterChartData.datasets.forEach(function (dataset) {
+            dataset.data = generateAverage();
+        });
+        window.myScatter.update();
+    }
+
+    // Draw a scatter plot for title word length
+    function DrawScatterPlot_WordLength() {
+
+        scatterChartData.datasets[0].label = 'Title word length';
+        scatterChartData.datasets.forEach(function (dataset) {
+            dataset.data = generateWordLength();
+        });
+        window.myScatter.update();
+
+    }
+
+    // Draw empty scatter plot
+    function DrawEmptyPlot() {
+        window.myScatter = Chart.Scatter(ctx, {
+            data: scatterChartData,
+            options: {
+                title: {
+                    display: true,
+                    text: 'Scatter Chart'
+                },
+            }
+        });
+    }
+
+    // Handle the selection of an artist
+    function searchSongs(artistID) {
+
+        $.ajax({
+            url: '@Url.Action("SearchSongs", "Search")',
+            datatype: 'JSON',
+            type: 'POST',
+            data: { 'artistID': artistID },
+            success: function (data) {
+
+                // Show song result
+                $("#divSongResult").show();
+                $("#divScatterPlot").show();
+
+                // Show scatter plot
+                DrawEmptyPlot();
+
+                // If no results then exit
+                if (jQuery.isEmptyObject(jQuery.parseJSON(data))) {
+                    $("#divSongResultList").html("No result");
+                    return;
+                }
+
+                // Prepare list with song results
+                var songs = '<ul>';
+                $.each(jQuery.parseJSON(data), function () {
+                    songs += '<li> <a href="#" onclick="getLyricsStatistics(\'' + this["SongID"] + '\')">' + this["SongName"] + '</a></li>';
+                })
+                songs += '</ul>';
+
+                // Display song result list
+                $("#divSongResultList").html(songs);
+            },
+            error: function (error) {
+                alert(error.responseText);
+            }
+        });
+
+    }
+
+    $(document).ready(function () {        
+
+        // Get canvas div
+        ctx = document.getElementById('canvas').getContext('2d');
+
+        // Hide results
+        $("#divArtistResult").hide();
+        $("#divSongResult").hide();
+        $("#divScatterPlot").hide();
+
+        // Handle button click to show average number of words
+        $("#btnAverage").click(function () {
+
+            DrawScatterPlot_Average();
+
+            // Stop callback
+            return false;
+        });
+
+        // Handle button click to sort titles by length
+        $("#btnWordLength").click(function () {
+
+            DrawScatterPlot_WordLength();
+
+            // Stop callback
+            return false;
+        });
+
+        // Handle the search for artists
+        $("#btnSearchArtist").click(function () {            
+
+            $.ajax({
+                url: $("#searchArtistForm").attr('action'),
+                datatype: 'JSON',
+                type: 'POST',
+                data: $("#searchArtistForm").serialize(),               
+                success: function (data) {
+
+                    // Clear artist and song list
+                    $("#divArtistResultList").html('');
+                    $("#divSongResultList").html('');
+
+                    // Hide song result
+                    $("#divSongResult").hide();
+                    $("#divScatterPlot").hide();
+
+                    // Show artist result
+                    $("#divArtistResult").show();                   
+
+                    // If no results then exit
+                    if (jQuery.isEmptyObject(jQuery.parseJSON(data))) {
+                        $("#divArtistResultList").html("No result");
+                        return;
+                    }
+
+                    // Prepare list with artist results
+                    var artists = '<ul>';
+                    $.each(jQuery.parseJSON(data), function () {
+                        artists += '<li> <a href="#" onclick="searchSongs(\'' + this["ArtistID"] + '\')">' + this["ArtistName"] + '</a></li>';
+                    })
+                    artists += '</ul>';
+
+                    // Display artist result list
+                    $("#divArtistResultList").html(artists);
+                },
+                error: function (error) {
+                    alert(error.responseText);
+                }
+            });
+
+        });
+    });
+</script>
+
+@using (Html.BeginForm("SearchArtist", "Search", FormMethod.Post, new { id = "searchArtistForm" }))
+{
+
+    @Html.LabelFor(m => m.ArtistName)
+    <span>&nbsp;</span>
+    @Html.TextBoxFor(m => m.ArtistName)
+    <button id="btnSearchArtist" type="button">Search</button>
+}
+<br/>
+        
+<div id="divArtistResult">
+    <strong>Artist search results</strong>
+    <div id="divArtistResultList"></div>
+</div>
+
+<div id="divSongResult">
+
+    <strong>Songs search results</strong>
+    <div id="divSongResultList"></div>
+
+</div>
+
+<div id="divScatterPlot">
+    <div style="width:75%">
+        <canvas id="canvas"></canvas>
+    </div>
+    <table>
+        <tr>
+            <td><button id="btnWordLength">Show</button></td>
+            <td>Plot length of words for each title</td>
+        </tr>
+        <tr>
+            <td><button id="btnAverage">Show</button></td>
+            <td>Plot min, max and average title length</td>
+        </tr>
+    </table>
+</div>
+
+
+
+
+    
